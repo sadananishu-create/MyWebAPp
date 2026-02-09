@@ -1,4 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom';
+import { useUserStore } from '../store/userStore';
 
 const navItems = [
   { to: '/feed', label: 'Feed', icon: '🏠' },
@@ -8,6 +9,8 @@ const navItems = [
 ];
 
 export default function Layout() {
+  const name = useUserStore((s) => s.name);
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
@@ -15,6 +18,7 @@ export default function Layout() {
         <h1 className="font-display text-xl font-extrabold tracking-tight">
           KidStream
         </h1>
+        <span className="text-xs text-primary-200">Hi, {name}!</span>
       </header>
 
       {/* Main content */}

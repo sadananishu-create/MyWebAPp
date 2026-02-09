@@ -1,89 +1,96 @@
-import { useFeedStore } from '../store/feedStore';
+import { useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import ContentCard from '../components/ContentCard';
+import ContentViewer from '../components/ContentViewer';
 import PlatformFilter from '../components/PlatformFilter';
-import type { ContentItem } from '@kidstream/shared/src/types';
-
-// Demo data for initial scaffold — will be replaced by API calls
-const DEMO_ITEMS: ContentItem[] = [
-  {
-    id: '1',
-    platform: 'youtube',
-    type: 'video',
-    title: 'Amazing Dinosaur Facts for Kids!',
-    description: 'Learn cool facts about T-Rex, Triceratops, and more.',
-    thumbnailUrl: 'https://placehold.co/640x360/6366f1/white?text=Dinosaurs',
-    sourceUrl: '#',
-    duration: 312,
-    creatorName: 'DinoWorld Kids',
-    tags: ['dinosaurs', 'education', 'animals'],
-    publishedAt: '2026-02-01T10:00:00Z',
-  },
-  {
-    id: '2',
-    platform: 'youtube_shorts',
-    type: 'short',
-    title: 'How to Draw a Rocket in 30 Seconds',
-    description: 'Quick drawing tutorial for kids.',
-    thumbnailUrl: 'https://placehold.co/640x360/ec4899/white?text=Drawing',
-    sourceUrl: '#',
-    duration: 30,
-    creatorName: 'Art4Kids',
-    tags: ['drawing', 'art', 'space'],
-    publishedAt: '2026-02-05T14:00:00Z',
-  },
-  {
-    id: '3',
-    platform: 'instagram_reels',
-    type: 'reel',
-    title: 'Cool Science Experiment at Home',
-    description: 'Make a volcano with baking soda!',
-    thumbnailUrl: 'https://placehold.co/640x360/f59e0b/white?text=Science',
-    sourceUrl: '#',
-    duration: 45,
-    creatorName: 'ScienceIsFun',
-    tags: ['science', 'experiments', 'DIY'],
-    publishedAt: '2026-02-07T08:00:00Z',
-  },
-  {
-    id: '4',
-    platform: 'image',
-    type: 'image',
-    title: 'Space Coloring Page — Solar System',
-    description: 'Download and color the planets.',
-    thumbnailUrl: 'https://placehold.co/640x360/10b981/white?text=Coloring',
-    sourceUrl: '#',
-    creatorName: 'ColorZone',
-    tags: ['coloring', 'space', 'art'],
-    publishedAt: '2026-02-08T12:00:00Z',
-  },
-];
+import { useUserStore } from '../store/userStore';
+import { DEMO_CONTENT } from '../data/demoContent';
+import type { ContentItem, ContentPlatform } from '@kidstream/shared/src/types';
 
 export default function FeedPage() {
-  const { platformFilters, setPlatformFilters } = useFeedStore();
+  const { interests, platformFilters, setPlatformFilters, skippedIds } = useUserStore();
+  const [viewingItem, setViewingItem] = useState<ContentItem | null>(null);
+  const [searchParams] = useSearchParams();
 
-  const filtered = DEMO_ITEMS.filter((item) =>
-    platformFilters.includes(item.platform),
-  );
+  // If navigated from Explore with a topic filter
+  const topicFilter = searchParams.get('topic')?.toLowerCase();
+
+  // Filter and rank content
+  const feedItems = useMemo(() => {
+    let items = DEMO_CONTENT
+      // Platform filter
+      .filter((item) => platformFilters.includes(item.platform))
+      // Remove skipped
+      .filter((item) => !skippedIds.includes(item.id))
+      // Topic filter from Explore
+      .filter((item) =>
+        topicFilter
+          ? item.tags.some((t) => t.toLowerCase() === topicFilter)
+          : true,
+      );
+
+    // Score by interest match
+    items = items.map((item) => ({
+      ...item,
+      relevanceScore: item.tags.reduce(
+        (score, tag) =>
+          interests.some((i) => i.toLowerCase() === tag.toLowerCase()) ? score + 10 : score,
+        0,
+      ),
+    }));
+
+    // Sort: highest relevance first, then by date
+    items.sort((a, b) => {
+      const scoreDiff = (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+    });
+
+    return items;
+  }, [platformFilters, skippedIds, interests, topicFilter]);
 
   return (
     <div>
+      {/* Topic filter banner */}
+      {topicFilter && (
+        <div className="bg-primary-50 px-4 py-2 flex items-center justify-between">
+          <span className="text-sm text-primary-700 font-medium">
+            Showing: <span className="font-bold capitalize">{topicFilter}</span>
+          </span>
+          <a
+            href="/feed"
+            className="text-xs text-primary-600 font-medium hover:underline"
+          >
+            Clear filter
+          </a>
+        </div>
+      )}
+
       <PlatformFilter selected={platformFilters} onChange={setPlatformFilters} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 px-4 pb-4">
-        {filtered.map((item) => (
+        {feedItems.map((item) => (
           <ContentCard
             key={item.id}
             item={item}
-            onLike={(id) => console.log('liked', id)}
-            onSkip={(id) => console.log('skipped', id)}
+            onOpen={setViewingItem}
           />
         ))}
-        {filtered.length === 0 && (
-          <p className="col-span-full text-center text-gray-400 py-12">
-            No content matches your filters. Try enabling more platforms.
-          </p>
+        {feedItems.length === 0 && (
+          <div className="col-span-full text-center py-16">
+            <p className="text-4xl mb-3">🔍</p>
+            <p className="text-gray-500 font-medium">No content found</p>
+            <p className="text-gray-400 text-sm mt-1">
+              Try enabling more platforms or adjusting your interests.
+            </p>
+          </div>
         )}
       </div>
+
+      {/* Content viewer modal */}
+      {viewingItem && (
+        <ContentViewer item={viewingItem} onClose={() => setViewingItem(null)} />
+      )}
     </div>
   );
 }
