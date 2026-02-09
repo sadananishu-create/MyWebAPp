@@ -1,0 +1,24 @@
+{
+  "name": "kidstream",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Safe, unified content discovery platform for kids",
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "npm -w client run dev",
+    "dev:server": "npm -w server run dev",
+    "build": "npm -w shared run build && npm -w client run build && npm -w server run build",
+    "test": "npm -w client run test && npm -w server run test",
+    "lint": "eslint . --ext .ts,.tsx"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.7.0",
+    "eslint": "^9.18.0"
+  }
+}
